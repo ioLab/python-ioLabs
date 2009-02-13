@@ -1,5 +1,7 @@
 from hid.cparser import *
 
+import ctypes
+
 def test_tokenizer():
     t=tokenizer('void* my_fn(void)')
     assert not t.empty()
@@ -72,3 +74,25 @@ def test_parse_c_def_var_type():
     assert var.type_name == 'void*'
     print var.name
     assert var.name == ''
+
+def test_parse_c_def_void_ctype():
+    assert parse_c_def('void').ctype is None
+    assert parse_c_def('void*').ctype  == ctypes.c_void_p
+    assert parse_c_def('void**').ctype == ctypes.POINTER(ctypes.c_void_p)
+
+def test_parse_c_def_int_ctype():
+    assert parse_c_def('int').ctype   == ctypes.c_int
+    assert parse_c_def('int*').ctype  == ctypes.POINTER(ctypes.c_int)
+    assert parse_c_def('int**').ctype == ctypes.POINTER(ctypes.POINTER(ctypes.c_int))
+
+def test_parse_c_def_function_ctype():
+    assert parse_c_def('void hello(int)').ctype       == ctypes.CFUNCTYPE(None, ctypes.c_int)
+    assert parse_c_def('void hello(int name)').ctype  == ctypes.CFUNCTYPE(None, ctypes.c_int)
+    assert parse_c_def('int hello(int name)').ctype   == ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int)
+    assert parse_c_def('int hello(void *name)').ctype == ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p)
+    assert parse_c_def('int hello(void* name)').ctype == ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p)
+
+def test_parse_c_def_function_cstruct():
+    assert parse_c_def('void hello(int)').cstruct == ('hello', ctypes.CFUNCTYPE(None, ctypes.c_int))
+    assert parse_c_def('int var').cstruct == ('var', ctypes.c_int)
+    assert parse_c_def('void *p').cstruct == ('p', ctypes.c_void_p)

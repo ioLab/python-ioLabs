@@ -1,3 +1,4 @@
+from ctypes import *
 import re
 
 TOKENS=re.compile(r'\w+|[()*,]')
@@ -28,10 +29,37 @@ class tokenizer(object):
         # are we at the last element
         return self.i >= (len(self.tokens)-1)
 
+_types={}
+
+def define(name, t):
+    _types[name]=t
+
+# define standard ctypes
+define('void', None)
+define('void*', c_void_p)
+define('int', c_int)
+
+def _parse_type(type_str):
+    # see if the type is there
+    if _types.has_key(type_str):
+        return _types[type_str]
+    if type_str.endswith('*'):
+        type_str=type_str[:-1]
+        return POINTER(_parse_type(type_str))
+
 class c_type(object):
     def __init__(self,type_name,name=''):
         self.type_name=type_name
         self.name=name
+    
+    @property
+    def ctype(self):
+        return _parse_type(self.type_name)            
+    
+    @property
+    def cstruct(self):
+        '''convert the type for use in a struct'''
+        return (self.name, self.ctype)
     
     def __repr__(self):
         if self.name:
@@ -43,6 +71,16 @@ class c_function(object):
         self.return_type=return_type
         self.name=name
         self.param_list=param_list
+    
+    @property
+    def ctype(self):
+        params=[p.ctype for p in self.param_list]
+        return CFUNCTYPE(self.return_type.ctype, *params)
+    
+    @property
+    def cstruct(self):
+        '''convert the type for use in a struct'''
+        return (self.name, self.ctype)
     
     def __repr__(self):
         return u'c_function(%s %s %s)' % (self.return_type, self.name, self.param_list)
