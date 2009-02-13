@@ -4,11 +4,63 @@ import re
 TOKENS=re.compile(r'\w+|[()*,]')
 WORD=re.compile(r'^\w+$')
 
+_keywords=set()
+
+_types={}
+
+def define(name, t):
+    _types[name]=t
+    # assume defined types are keywords
+    for token in re.findall(r'\w+', name):
+        _keywords.add(token)
+
+# define standard ctypes
+define('void', None)
+define('void*', c_void_p)
+define('char', c_char)
+define('wchar_t', c_wchar)
+define('unsigned char', c_ubyte)
+define('short', c_short)
+define('unsigned short', c_ushort)
+define('int', c_int)
+define('unsigned int', c_uint)
+define('long', c_long)
+define('unsigned long', c_ulong)
+define('long long', c_longlong)
+define('unsigned long long', c_ulonglong)
+define('float', c_float)
+define('double', c_double)
+define('char*', c_char_p)
+define('wchar_t*', c_wchar_p)
+
+
+def _parse_type(type_str):
+    # see if the type is there
+    if _types.has_key(type_str):
+        return _types[type_str]
+    if type_str.endswith('*'):
+        type_str=type_str[:-1]
+        return POINTER(_parse_type(type_str))
 
 class tokenizer(object):
     def __init__(self,s):
         self.s=s
-        self.tokens=TOKENS.findall(s)
+        # parse raw tokens, then group adjacent keywords
+        # together to treat them like one token (e.g. 'unsigned int')
+        tokens=TOKENS.findall(s)
+        self.tokens=[]
+        k=[]
+        for t in tokens:
+            if t in _keywords:
+                k.append(t)
+            else:
+                if len(k) > 0:
+                    self.tokens.append(' '.join(k))
+                    k=[]
+                self.tokens.append(t)
+        if len(k) > 0:
+            self.tokens.append(' '.join(k))
+        
         self.i=-1
     
     def next(self):
@@ -29,23 +81,7 @@ class tokenizer(object):
         # are we at the last element
         return self.i >= (len(self.tokens)-1)
 
-_types={}
 
-def define(name, t):
-    _types[name]=t
-
-# define standard ctypes
-define('void', None)
-define('void*', c_void_p)
-define('int', c_int)
-
-def _parse_type(type_str):
-    # see if the type is there
-    if _types.has_key(type_str):
-        return _types[type_str]
-    if type_str.endswith('*'):
-        type_str=type_str[:-1]
-        return POINTER(_parse_type(type_str))
 
 class c_type(object):
     def __init__(self,type_name,name=''):
