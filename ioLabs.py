@@ -634,7 +634,7 @@ def _set_voice_key(commands,min_duration=None,min_silence=None,trigger_level=Non
         raise RuntimeError("error setting voice key code: 0x%x"%rep.status_code)
     
     # artificial delay to let values be written
-    time.sleep(0.005)
+    time.sleep(0.05)
 
 class VoiceKey(Interrupt):
     '''object representing the voice input on the USBBox'''
