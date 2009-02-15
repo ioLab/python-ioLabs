@@ -280,53 +280,60 @@ kIOHIDDeviceInterfaceID = CFUUIDGetConstantUUIDWithBytes(None,
 
 def find_hid_devices():
     '''
-    query the host computer for all available HID devices
+    query the host computer for all available USB *HID* devices
+    and returns a list of any found
+    '''
+    return find_usb_devices(kIOHIDDeviceKey, kIOHIDVendorIDKey, kIOHIDProductIDKey, OSXHIDDevice)
+
+def find_usb_devices(device_key,vendor_id_key,product_id_key,device_class):
+    '''
+    query the host computer for all available USB devices
     and returns a list of any found
     '''
     devices=[]
-    
-    hidMatchDictionary = IOServiceMatching(kIOHIDDeviceKey);
-    
-    hidObjectIterator=io_iterator_t()
-    
-    result=IOServiceGetMatchingServices(kIOMasterPortDefault,hidMatchDictionary,byref(hidObjectIterator))
-    if result != kIOReturnSuccess or not hidObjectIterator:
+
+    matchDictionary = IOServiceMatching(device_key);
+
+    objectIterator=io_iterator_t()
+
+    result=IOServiceGetMatchingServices(kIOMasterPortDefault,matchDictionary,byref(objectIterator))
+    if result != kIOReturnSuccess or not objectIterator:
         raise RuntimeError("Can't obtain an IO iterator")
 
     try:
         while True:
-            hidDevice = IOIteratorNext(hidObjectIterator)
-            if not hidDevice:
+            device = IOIteratorNext(objectIterator)
+            if not device:
                 break
-            
-            dev=OSXHIDDevice(hidDevice,0,0)
-            
-            hidProperties=CFMutableDictionaryRef()
-            result = IORegistryEntryCreateCFProperties(hidDevice,byref(hidProperties),kCFAllocatorDefault,kNilOptions)
-            if result == KERN_SUCCESS and hidProperties:
+
+            dev=device_class(device,0,0)
+
+            properties=CFMutableDictionaryRef()
+            result = IORegistryEntryCreateCFProperties(device,byref(properties),kCFAllocatorDefault,kNilOptions)
+            if result == KERN_SUCCESS and properties:
                 vendor,product=0,0
-                vendorRef = CFDictionaryGetValue(hidProperties, CFSTR(kIOHIDVendorIDKey));
-                productRef = CFDictionaryGetValue(hidProperties, CFSTR(kIOHIDProductIDKey));
-                
+                vendorRef = CFDictionaryGetValue(properties, CFSTR(vendor_id_key));
+                productRef = CFDictionaryGetValue(properties, CFSTR(product_id_key));
+
                 if vendorRef:
                     vendor=c_int()
                     CFNumberGetValue(parse('CFNumberRef').cast(vendorRef),kCFNumberIntType,byref(vendor))
                     CFRelease(vendorRef)
                     vendor=vendor.value
-                
+
                 if productRef:
                     product=c_int()
                     CFNumberGetValue(parse('CFNumberRef').cast(productRef),kCFNumberIntType,byref(product))
                     CFRelease(productRef)
                     product=product.value
-                
+
                 dev.vendor=vendor
                 dev.product=product
-            
-            logging.info("find_hid_devices: found device vendor=0x%04x product=0x%04x",dev.vendor,dev.product)
+
+            logging.info("find_usb_devices: found device vendor=0x%04x product=0x%04x",dev.vendor,dev.product)
             devices.append(dev)
     finally:
-        IOObjectRelease(hidObjectIterator)
+        IOObjectRelease(objectIterator)
     return devices
 
 class OSXHIDDevice(HIDDevice):

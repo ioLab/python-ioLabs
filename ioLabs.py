@@ -763,9 +763,20 @@ class USBBox(object):
         self._device=None
         for dev in hid.find_hid_devices():
             if is_usb_bbox(dev):
-                logging.info("found USB button box")
+                logging.info("found USB button box via HID")
                 self._device=dev
                 break
+        
+        if self._device is None:
+            # couldn't find box via HID
+            # means psyscopex may be installed
+            # so have to access as regular USB device
+            import psyscopex
+            for dev in psyscopex.find_devices():
+                if is_usb_bbox(dev):
+                    logging.info("found USB button box via USB")
+                    self._device=dev
+                    break
         
         if self._device is None:
             raise RuntimeError("could not find button box - check it's plugged in")

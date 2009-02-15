@@ -12,7 +12,7 @@ from threading import Thread
 
 __all__ = ['find_hid_devices','HIDDevice']
 
-class HIDDevice:
+class HIDDevice(object):
     '''
     absract class representing a HID device on the host computer
     '''
