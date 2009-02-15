@@ -19,6 +19,8 @@ mach_port_t=define('mach_port_t',  'void*')
 io_object_t=define('io_object_t',  'void*')
 io_iterator_t=define('io_iterator_t','void*')
 io_service_t=define('io_service_t', 'void*')
+io_registry_entry_t=define('io_registry_entry_t', io_object_t)
+
 LPVOID=define('LPVOID', 'void*')
 Boolean=define('Boolean',c_ubyte)
 UInt8=define('UInt8',c_uint8)
@@ -29,6 +31,8 @@ uint32_t=define('uint32_t',c_uint32)
 UInt64=define('UInt64',c_uint64)
 ULONG=define('ULONG',c_ulong)
 IOReturn=define('IOReturn',c_int)
+IOOptionBits=define('IOOptionBits', 'UInt32')
+kern_return_t=define('kern_return_t',c_int)
 CFDictionaryRef=define('CFDictionaryRef', 'void*')
 CFArrayRef=define('CFArrayRef', 'void*')
 AbsoluteTime=define('AbsoluteTime', 'UInt64')
@@ -48,6 +52,8 @@ define('__CFRunLoop', 'void*')
 CFRunLoopRef=define('CFRunLoopRef', '__CFRunLoop*')
 define('__CFRunLoopSource', 'void*')
 CFRunLoopSourceRef=CFRunLoopSourceRef=define('CFRunLoopSourceRef', '__CFRunLoopSource*')
+define('__CFDictionary', 'void*')
+CFMutableDictionaryRef=define('CFMutableDictionaryRef', '__CFDictionary*')
 
 # 128 bit identifier
 class CFUUIDBytes(Structure):
@@ -166,6 +172,8 @@ class IOCFPlugInInterfaceStruct(Structure):
     _fields_= IUNKNOWN_C_GUTS \
             + IOCFPLUGINBASE
 
+define('IOCFPlugInInterface', IOCFPlugInInterfaceStruct)
+
 class IOHIDDeviceInterface122(Structure):
     _fields_= IUNKNOWN_C_GUTS \
             + IOHIDDEVICEINTERFACE_FUNCS_100 \
@@ -213,7 +221,7 @@ kIOMasterPortDefault=None
 kCFAllocatorDefault=None
 kCFStringEncodingASCII = 0x0600
 kCFNumberIntType=9
-kNilOptions=''
+kNilOptions=0
 
 # load the CoreFoundation Library
 cfLibraryLocation=find_library('CoreFoundation')
@@ -244,12 +252,18 @@ logging.info('loading IOKit from: %s',iokitLibraryLocation)
 iokit=CDLL(iokitLibraryLocation)
 
 # IOKit functions we'll be using
-IOIteratorNext=iokit.IOIteratorNext
-IOIteratorNext.restype=io_object_t
-IOObjectRelease=iokit.IOObjectRelease
-IOServiceMatching=iokit.IOServiceMatching
-IOServiceGetMatchingServices=iokit.IOServiceGetMatchingServices
-IOCreatePlugInInterfaceForService=iokit.IOCreatePlugInInterfaceForService
+IOIteratorNext=parse('io_object_t IOIteratorNext(io_iterator_t iterator )').from_lib(iokit)
+IOObjectRelease=parse('kern_return_t IOObjectRelease(io_object_t object)').from_lib(iokit)
+IOServiceMatching=parse('CFMutableDictionaryRef IOServiceMatching(char* name )').from_lib(iokit)
+IOServiceGetMatchingServices=parse('kern_return_t IOServiceGetMatchingServices(mach_port_t masterPort,'
+                                        'CFDictionaryRef matching, io_iterator_t * existing )').from_lib(iokit)
+IOCreatePlugInInterfaceForService=parse('kern_return_t IOCreatePlugInInterfaceForService(io_service_t service,'
+                                            'CFUUIDRef pluginType, CFUUIDRef interfaceType,'
+                                            'IOCFPlugInInterface *** theInterface, SInt32 * theScore)').from_lib(iokit)
+IORegistryEntryCreateCFProperties=parse('kern_return_t IORegistryEntryCreateCFProperties(io_registry_entry_t entry,'
+                                            'CFMutableDictionaryRef * properties,'
+                                            'CFAllocatorRef allocator,'
+                                            'IOOptionBits options )').from_lib(iokit)
 
 # constants
 kIOHIDDeviceUserClientTypeID = CFUUIDGetConstantUUIDWithBytes(None,
@@ -287,8 +301,8 @@ def find_hid_devices():
             
             dev=OSXHIDDevice(hidDevice,0,0)
             
-            hidProperties=c_void_p()
-            result = iokit.IORegistryEntryCreateCFProperties(hidDevice,byref(hidProperties),kCFAllocatorDefault,kNilOptions)
+            hidProperties=CFMutableDictionaryRef()
+            result = IORegistryEntryCreateCFProperties(hidDevice,byref(hidProperties),kCFAllocatorDefault,kNilOptions)
             if result == KERN_SUCCESS and hidProperties:
                 vendor,product=0,0
                 vendorRef = CFDictionaryGetValue(hidProperties, CFSTR(kIOHIDVendorIDKey));
@@ -356,7 +370,7 @@ class OSXHIDDevice(HIDDevice):
             logging.info("opening hid device")
             # plugInInterface initialised to NULL
             plugInInterface=COMObjectRef(POINTER(POINTER(IOCFPlugInInterfaceStruct))())
-            score=UInt32()
+            score=SInt32()
             IOCreatePlugInInterfaceForService(self._hidDevice, kIOHIDDeviceUserClientTypeID,
             	kIOCFPlugInInterfaceID, byref(plugInInterface.ref), byref(score));
             
