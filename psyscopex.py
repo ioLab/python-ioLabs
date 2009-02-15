@@ -16,7 +16,7 @@ from hid.cparser import parse, define
 try:
     from hid.osx import IOObjectRelease, find_usb_devices, COMObjectRef, IOCreatePlugInInterfaceForService, \
                         CFUUIDGetConstantUUIDWithBytes, IOCFPlugInInterfaceStruct, SInt32, kIOCFPlugInInterfaceID, \
-                        IUNKNOWN_C_GUTS
+                        IUNKNOWN_C_GUTS, CFUUIDGetUUIDBytes
     on_osx=True
 except:
     on_osx=False
@@ -28,6 +28,20 @@ kUSBProductID="idProduct"
 kIOUSBDeviceUserClientTypeID=CFUUIDGetConstantUUIDWithBytes(None,
     0x9d, 0xc7, 0xb7, 0x80, 0x9e, 0xc0, 0x11, 0xD4,
     0xa5, 0x4f, 0x00, 0x0a, 0x27, 0x05, 0x28, 0x61)
+
+kIOUSBInterfaceUserClientTypeID=CFUUIDGetConstantUUIDWithBytes(None,
+    0x2d, 0x97, 0x86, 0xc6, 0x9e, 0xf3, 0x11, 0xD4,
+    0xad, 0x51, 0x00, 0x0a, 0x27, 0x05, 0x28, 0x61)
+
+kIOUSBInterfaceInterfaceID=CFUUIDGetConstantUUIDWithBytes(None,
+    0x73, 0xc9, 0x7a, 0xe8, 0x9e, 0xf3, 0x11, 0xD4,
+    0xb1, 0xd0, 0x00, 0x0a, 0x27, 0x05, 0x28, 0x61)
+
+kIOUSBDeviceInterfaceID=CFUUIDGetConstantUUIDWithBytes(None,
+    0x5c, 0x81, 0x87, 0xd0, 0x9e, 0xf3, 0x11, 0xD4,
+    0x8b, 0x45, 0x00, 0x0a, 0x27, 0x05, 0x28, 0x61)
+
+define('USBDeviceAddress','UInt16')
 
 class IOUSBDevRequest(Structure):
     _fields_=[
@@ -68,6 +82,63 @@ class IOUSBDevRequestTO(Structure):
     ]
 
 define('IOUSBDevRequestTO', IOUSBDevRequestTO)
+
+class IOUSBConfigurationDescriptor(Structure):
+    _fields_=[
+        parse('UInt8 bLength').cstruct,
+        parse('UInt8 bDescriptorType').cstruct,
+        parse('UInt16 wTotalLength').cstruct,
+        parse('UInt8 bNumInterfaces').cstruct,
+        parse('UInt8 bConfigurationValue').cstruct,
+        parse('UInt8 iConfiguration').cstruct,
+        parse('UInt8 bmAttributes').cstruct,
+        parse('UInt8 MaxPower').cstruct,
+    ]
+
+define('IOUSBConfigurationDescriptor',IOUSBConfigurationDescriptor)
+define('IOUSBConfigurationDescriptorPtr','IOUSBConfigurationDescriptor*')
+
+class IOUSBFindInterfaceRequest(Structure):
+    _fields_=[
+        parse('UInt16 bInterfaceClass').cstruct,
+        parse('UInt16 bInterfaceSubClass').cstruct,
+        parse('UInt16 bInterfaceProtocol').cstruct,
+        parse('UInt16 bAlternateSetting').cstruct,
+    ]
+
+define('IOUSBFindInterfaceRequest',IOUSBFindInterfaceRequest)
+
+class IOUSBDeviceInterface(Structure):
+    _fields_= IUNKNOWN_C_GUTS + \
+    [
+        parse('IOReturn (*CreateDeviceAsyncEventSource)(void *self, CFRunLoopSourceRef *source)').cstruct,
+        parse('CFRunLoopSourceRef (*GetDeviceAsyncEventSource)(void *self)').cstruct,
+        parse('IOReturn (*CreateDeviceAsyncPort)(void *self, mach_port_t *port)').cstruct,
+        parse('mach_port_t (*GetDeviceAsyncPort)(void *self)').cstruct,
+        parse('IOReturn (*USBDeviceOpen)(void *self)').cstruct,
+        parse('IOReturn (*USBDeviceClose)(void *self)').cstruct,
+        parse('IOReturn (*GetDeviceClass)(void *self, UInt8 *devClass)').cstruct,
+        parse('IOReturn (*GetDeviceSubClass)(void *self, UInt8 *devSubClass)').cstruct,
+        parse('IOReturn (*GetDeviceProtocol)(void *self, UInt8 *devProtocol)').cstruct,
+        parse('IOReturn (*GetDeviceVendor)(void *self, UInt16 *devVendor)').cstruct,
+        parse('IOReturn (*GetDeviceProduct)(void *self, UInt16 *devProduct)').cstruct,
+        parse('IOReturn (*GetDeviceReleaseNumber)(void *self, UInt16 *devRelNum)').cstruct,
+        parse('IOReturn (*GetDeviceAddress)(void *self, USBDeviceAddress *addr)').cstruct,
+        parse('IOReturn (*GetDeviceBusPowerAvailable)(void *self, UInt32 *powerAvailable)').cstruct,
+        parse('IOReturn (*GetDeviceSpeed)(void *self, UInt8 *devSpeed)').cstruct,
+        parse('IOReturn (*GetNumberOfConfigurations)(void *self, UInt8 *numConfig)').cstruct,
+        parse('IOReturn (*GetLocationID)(void *self, UInt32 *locationID)').cstruct,
+        parse('IOReturn (*GetConfigurationDescriptorPtr)(void *self, UInt8 configIndex, IOUSBConfigurationDescriptorPtr *desc)').cstruct,
+        parse('IOReturn (*GetConfiguration)(void *self, UInt8 *configNum)').cstruct,
+        parse('IOReturn (*SetConfiguration)(void *self, UInt8 configNum)').cstruct,
+        parse('IOReturn (*GetBusFrameNumber)(void *self, UInt64 *frame, AbsoluteTime *atTime)').cstruct,
+        parse('IOReturn (*ResetDevice)(void *self)').cstruct,
+        parse('IOReturn (*DeviceRequest)(void *self, IOUSBDevRequest *req)').cstruct,
+        parse('IOReturn (*DeviceRequestAsync)(void *self, IOUSBDevRequest *req, IOAsyncCallback1 callback, void *refCon)').cstruct,
+        parse('IOReturn (*CreateInterfaceIterator)(void *self, IOUSBFindInterfaceRequest *req, io_iterator_t *iter)').cstruct,
+    ]
+    
+define('IOUSBDeviceInterface',IOUSBDeviceInterface)
 
 class IOUSBInterfaceInterface182(Structure):
     _fields_ = IUNKNOWN_C_GUTS + \
@@ -146,14 +217,15 @@ class PsyScopeXUSBDevice(HIDDevice):
         # plugInInterface initialised to NULL
         plugInInterface=COMObjectRef(POINTER(POINTER(IOCFPlugInInterfaceStruct))())
         score=SInt32()
-        IOCreatePlugInInterfaceForService(self._usbDevice, kIOUSBDeviceUserClientTypeID,
+        err=IOCreatePlugInInterfaceForService(self._usbDevice, kIOUSBDeviceUserClientTypeID,
             kIOCFPlugInInterfaceID, byref(plugInInterface.ref), byref(score));
         
+        print err
         
-        # query to get the HID interface
-        #hidInterface=POINTER(POINTER(IOHIDDeviceInterface122))()
-        #plugInInterface.QueryInterface(CFUUIDGetUUIDBytes(kIOHIDDeviceInterfaceID),parse('LPVOID*').cast(byref(hidInterface)))
-        
+        # query to get the USB interface
+        usbDevInterface=POINTER(POINTER(IOUSBDeviceInterface))()
+        res=plugInInterface.QueryInterface(CFUUIDGetUUIDBytes(kIOUSBDeviceInterfaceID),parse('LPVOID*').cast(byref(usbDevInterface)))
+        print res
         #self._hidInterface=COMObjectRef(hidInterface)
         
         # open the HID device
