@@ -15,49 +15,55 @@ from hid import HIDDevice
 from hid.cparser import define, parse
 
 # define various types we'll be using (so we can match name from headers)
-
-define('mach_port_t',  'void*')
-define('io_object_t',  'void*')
-define('io_iterator_t','void*')
-define('io_service_t', 'void*')
-define('LPVOID', 'void*')
-define('Boolean',c_ubyte)
-define('UInt16',c_uint16)
-define('SInt32',c_int32)
-define('UInt32',c_uint32)
-define('uint32_t',c_uint32)
-define('UInt64',c_uint64)
-define('ULONG',c_ulong)
-define('IOReturn',c_int)
-define('CFRunLoopSourceRef', 'void*')
-define('CFDictionaryRef', 'void*')
-define('CFArrayRef', 'void*')
-define('AbsoluteTime', 'UInt64')
-define('CFTimeInterval', 'double')
+mach_port_t=define('mach_port_t',  'void*')
+io_object_t=define('io_object_t',  'void*')
+io_iterator_t=define('io_iterator_t','void*')
+io_service_t=define('io_service_t', 'void*')
+LPVOID=define('LPVOID', 'void*')
+Boolean=define('Boolean',c_ubyte)
+UInt8=define('UInt8',c_uint8)
+UInt16=define('UInt16',c_uint16)
+SInt32=define('SInt32',c_int32)
+UInt32=define('UInt32',c_uint32)
+uint32_t=define('uint32_t',c_uint32)
+UInt64=define('UInt64',c_uint64)
+ULONG=define('ULONG',c_ulong)
+IOReturn=define('IOReturn',c_int)
+CFDictionaryRef=define('CFDictionaryRef', 'void*')
+CFArrayRef=define('CFArrayRef', 'void*')
+AbsoluteTime=define('AbsoluteTime', 'UInt64')
+CFTimeInterval=define('CFTimeInterval', 'double')
+CFTypeRef=define('CFTypeRef', 'void*')
 define('__CFString', 'void*') # opaque datatype
-define('CFStringRef', '__CFString*')
+CFStringRef=define('CFStringRef', '__CFString*')
 define('__CFAllocator', 'void*')
-define('CFAllocatorRef', '__CFAllocator*')
-define('CFStringEncoding', 'UInt32')
+CFAllocatorRef=define('CFAllocatorRef', '__CFAllocator*')
+CFStringEncoding=define('CFStringEncoding', 'UInt32')
 define('__CFNumber', 'void*')
-define('CFNumberRef', '__CFNumber*')
-define('CFNumberType',c_int) # enum
+CFNumberRef=define('CFNumberRef', '__CFNumber*')
+CFNumberType=define('CFNumberType',c_int) # enum
+define('__CFUUID', 'void*')
+CFUUIDRef=define('CFUUIDRef', '__CFUUID*')
+define('__CFRunLoop', 'void*')
+CFRunLoopRef=define('CFRunLoopRef', '__CFRunLoop*')
+define('__CFRunLoopSource', 'void*')
+CFRunLoopSourceRef=CFRunLoopSourceRef=define('CFRunLoopSourceRef', '__CFRunLoopSource*')
 
 # 128 bit identifier
 class CFUUIDBytes(Structure):
     _fields_ = [ ('bytes0_15', c_ubyte * 16) ]
 
 define('CFUUIDBytes',CFUUIDBytes)
-define('REFIID','CFUUIDBytes')
+REFIID=define('REFIID','CFUUIDBytes')
 
-define('IOHIDElementCookie','void*')
-define('IOHIDElementType',c_int) # enum 
+IOHIDElementCookie=define('IOHIDElementCookie','void*')
+IOHIDElementType=define('IOHIDElementType',c_int) # enum 
 
-define('IOHIDQueueInterface','void*')
-define('IOHIDOutputTransactionInterface','void*')
-define('IOHIDReportType',c_int) # enum
+IOHIDQueueInterface=define('IOHIDQueueInterface','void*')
+IOHIDOutputTransactionInterface=define('IOHIDOutputTransactionInterface','void*')
+IOHIDReportType=define('IOHIDReportType',c_int) # enum
 
-define('HRESULT','SInt32')
+HRESULT=define('HRESULT','SInt32')
 
 IOHIDCallbackFunction=parse('void (*IOHIDCallbackFunction)(void *target, IOReturn result, void *refcon, void *sender)').ctype
 define('IOHIDCallbackFunction',IOHIDCallbackFunction)
@@ -80,31 +86,7 @@ class IOHIDEventStruct(Structure):
 
 define('IOHIDEventStruct',IOHIDEventStruct)
 
-mach_port_t=c_void_p
 
-io_object_t=mach_port_t
-io_iterator_t=io_object_t
-
-SInt32=c_int
-UInt32=c_uint
-UInt64=c_ulonglong
-IOReturn=c_int
-CFRunLoopSourceRef=c_void_p
-CFDictionaryRef=c_void_p
-CFArrayRef=c_void_p
-AbsoluteTime=UInt64
-CFTimeInterval=c_double
-
-REFIID=CFUUIDBytes
-
-
-IOHIDElementCookie=c_void_p
-IOHIDElementType=c_int # enum 
-
-IOHIDQueueInterface=c_void_p
-IOHIDOutputTransactionInterface=c_void_p
-
-IOHIDReportType=c_int # enum
 # enum values for IOHIDReportType
 kIOHIDReportTypeInput=0
 kIOHIDReportTypeOutput=1
@@ -242,21 +224,19 @@ cf=CDLL(cfLibraryLocation)
 CFDictionaryGetValue=parse('void *CFDictionaryGetValue(CFDictionaryRef theDict, void *key)').from_lib(cf)
 CFStringCreateWithCString=parse('CFStringRef CFStringCreateWithCString(CFAllocatorRef alloc, char *cStr, CFStringEncoding encoding)').from_lib(cf)
 CFNumberGetValue=parse('Boolean CFNumberGetValue(CFNumberRef number, CFNumberType theType, void *valuePtr)').from_lib(cf)
-CFRelease=cf.CFRelease
-CFUUIDGetConstantUUIDWithBytes=cf.CFUUIDGetConstantUUIDWithBytes
-CFUUIDGetUUIDBytes=cf.CFUUIDGetUUIDBytes
-CFUUIDGetUUIDBytes.restype=CFUUIDBytes
-CFRunLoopAddSource=cf.CFRunLoopAddSource
-CFRunLoopGetCurrent=cf.CFRunLoopGetCurrent
-CFRunLoopRunInMode=cf.CFRunLoopRunInMode
-CFRunLoopRunInMode.argtypes = [ c_void_p, CFTimeInterval, c_int ]
+CFRelease=parse('void CFRelease (CFTypeRef cf)').from_lib(cf)
+CFUUIDGetConstantUUIDWithBytes=parse('CFUUIDRef CFUUIDGetConstantUUIDWithBytes(CFAllocatorRef alloc, UInt8 byte0, UInt8 byte1, UInt8 byte2, UInt8 byte3, UInt8 byte4, UInt8 byte5, UInt8 byte6, UInt8 byte7, UInt8 byte8, UInt8 byte9, UInt8 byte10, UInt8 byte11, UInt8 byte12, UInt8 byte13, UInt8 byte14, UInt8 byte15)').from_lib(cf)
+CFUUIDGetUUIDBytes=parse('CFUUIDBytes CFUUIDGetUUIDBytes(CFUUIDRef uuid)').from_lib(cf)
+CFRunLoopAddSource=parse('void CFRunLoopAddSource(CFRunLoopRef rl, CFRunLoopSourceRef source, CFStringRef mode)').from_lib(cf)
+CFRunLoopGetCurrent=parse('CFRunLoopRef CFRunLoopGetCurrent()').from_lib(cf)
+CFRunLoopRunInMode=parse('SInt32 CFRunLoopRunInMode(CFStringRef mode, CFTimeInterval seconds, Boolean returnAfterSourceHandled)').from_lib(cf)
 
 # CFSTR was a macro so we'll use a function instead
 def CFSTR(cstr):
     return CFStringCreateWithCString(kCFAllocatorDefault,cstr,kCFStringEncodingASCII)
 
 # CoreFoundation constant
-kCFRunLoopDefaultMode=c_void_p.in_dll(cf,"kCFRunLoopDefaultMode")
+kCFRunLoopDefaultMode=CFStringRef.in_dll(cf,"kCFRunLoopDefaultMode")
 
 # Load IOKit
 iokitLibraryLocation=find_library('IOKit')
@@ -455,7 +435,6 @@ class OSXHIDDevice(HIDDevice):
         # kick off the queues etc
         self._hidInterface.startAllQueues()
         CFRunLoopAddSource(CFRunLoopGetCurrent(), eventSource, kCFRunLoopDefaultMode)
-        
         logging.info("running CFRunLoopRunInMode")
         
         while self._running and self.is_open():
