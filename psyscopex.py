@@ -7,7 +7,7 @@ the same way as for a HID device
 '''
 
 import logging
-
+import struct
 from ctypes import *
 
 from hid import HIDDevice
@@ -15,8 +15,8 @@ from hid.cparser import parse, define
 
 try:
     from hid.osx import IOObjectRelease, find_usb_devices, COMObjectRef, IOCreatePlugInInterfaceForService, \
-                        CFUUIDGetConstantUUIDWithBytes, IOCFPlugInInterfaceStruct, SInt32, UInt8, kIOCFPlugInInterfaceID, \
-                        IUNKNOWN_C_GUTS, CFUUIDGetUUIDBytes,iokit
+                        CFUUIDGetConstantUUIDWithBytes, IOCFPlugInInterfaceStruct, SInt32, UInt32, UInt8, kIOCFPlugInInterfaceID, \
+                        IUNKNOWN_C_GUTS, CFUUIDGetUUIDBytes, io_iterator_t, IOIteratorNext
     on_osx=True
 except:
     on_osx=False
@@ -36,6 +36,7 @@ kIOUSBDeviceClassName="IOUSBDevice"
 kUSBVendorID="idVendor"
 kUSBProductID="idProduct"
 kIOReturnExclusiveAccess=iokit_common_err(0x2c5)
+kIOUSBFindInterfaceDontCare = 0xFFFF
 
 kIOUSBDeviceUserClientTypeID=CFUUIDGetConstantUUIDWithBytes(None,
     0x9d, 0xc7, 0xb7, 0x80, 0x9e, 0xc0, 0x11, 0xD4,
@@ -53,7 +54,7 @@ kIOUSBDeviceInterfaceID=CFUUIDGetConstantUUIDWithBytes(None,
     0x5c, 0x81, 0x87, 0xd0, 0x9e, 0xf3, 0x11, 0xD4,
     0x8b, 0x45, 0x00, 0x0a, 0x27, 0x05, 0x28, 0x61)
 
-define('USBDeviceAddress','UInt16')
+USBDeviceAddress=define('USBDeviceAddress','UInt16')
 
 class IOUSBDevRequest(Structure):
     _fields_=[
@@ -108,7 +109,7 @@ class IOUSBConfigurationDescriptor(Structure):
     ]
 
 define('IOUSBConfigurationDescriptor',IOUSBConfigurationDescriptor)
-define('IOUSBConfigurationDescriptorPtr','IOUSBConfigurationDescriptor*')
+IOUSBConfigurationDescriptorPtr=define('IOUSBConfigurationDescriptorPtr','IOUSBConfigurationDescriptor*')
 
 class IOUSBFindInterfaceRequest(Structure):
     _fields_=[
@@ -211,6 +212,7 @@ class PsyScopeXUSBDevice(HIDDevice):
     def __init__(self, dev, vendor, product):
         super(PsyScopeXUSBDevice,self).__init__(vendor,product)
         self._usbDevice=dev
+        self._devInterface = None
         
         # cache these so they are guaranteed to be available
         # when calling __del__
@@ -223,6 +225,14 @@ class PsyScopeXUSBDevice(HIDDevice):
         if self._usbDevice:
             self.logging_info("releasing USB device: %s"%self)
             self.IOObjectRelease(self._usbDevice)
+    
+    def close(self):
+        if self._devInterface:
+            self._devInterface.USBInterfaceClose()
+        super(PsyScopeXUSBDevice,self).close()
+    
+    def is_open(self):
+        return self._devInterface is not None
     
     def open(self):
         logging.info("opening hid device via usb")
@@ -254,11 +264,83 @@ class PsyScopeXUSBDevice(HIDDevice):
         
         logging.info("Found %d Interface(s)" % numConf.value)
         
+        configDesc=IOUSBConfigurationDescriptorPtr()
         
-        #self._hidInterface=COMObjectRef(hidInterface)
+        # get first (and only) config
+        err = usbDevInterface.GetConfigurationDescriptorPtr(0, byref(configDesc))
+        if err:
+            raise RuntimeError("Error calling GetConfigurationDescriptorPtr")
+        err = usbDevInterface.SetConfiguration(configDesc.contents.bConfigurationValue)
+        if err:
+            raise RuntimeError("Error calling SetConfiguration")
         
-        # open the HID device
-        #self._hidInterface.open(0)
+        interfaceRequest=IOUSBFindInterfaceRequest()
+        interfaceRequest.bInterfaceClass = kIOUSBFindInterfaceDontCare
+        interfaceRequest.bInterfaceSubClass = kIOUSBFindInterfaceDontCare
+        interfaceRequest.bInterfaceProtocol = kIOUSBFindInterfaceDontCare
+        interfaceRequest.bAlternateSetting = kIOUSBFindInterfaceDontCare
+                
+        interfaceIterator=io_iterator_t()
+        err = usbDevInterface.CreateInterfaceIterator(byref(interfaceRequest), byref(interfaceIterator))
+        if err:
+            raise RuntimeError("Error calling CreateInterfaceIterator")
+        err = usbDevInterface.USBDeviceClose()
+        if err:
+            raise RuntimeError("Error calling USBDeviceClose")
+        
+        while True:
+            interface = IOIteratorNext(interfaceIterator)
+            if not interface:
+                break
+            self._open_interface(interface)
+            
+        IOObjectRelease(interfaceIterator)
+        
+    def _open_interface(self, interface):
+        
+        plugInInterface=COMObjectRef(POINTER(POINTER(IOCFPlugInInterfaceStruct))())
+        score=SInt32()
+        
+        err = IOCreatePlugInInterfaceForService(interface,
+                    kIOUSBInterfaceUserClientTypeID, kIOCFPlugInInterfaceID, byref(plugInInterface.ref), byref(score));
+        
+        devInterface=POINTER(POINTER(IOUSBInterfaceInterface182))()
+        
+        err = plugInInterface.QueryInterface(CFUUIDGetUUIDBytes(kIOUSBInterfaceInterfaceID),parse('LPVOID*').cast(byref(devInterface)));
+        if err:
+            raise RuntimeError("Failed to QueryInterface for USB Interface Interface")
+        
+        self._devInterface=COMObjectRef(devInterface)
+        
+        err = self._devInterface.USBInterfaceOpen()
+        if err:
+            raise RuntimeError("Error opening USB interface")
+        
+        numPipes=UInt8()
+        err = self._devInterface.GetNumEndpoints(byref(numPipes))
+        if err:
+            raise RuntimeError("Error calling GetNumEndpoints")
+        
+    def _run_interrupt_callback_loop(self,report_buffer_size):
+        if not self.is_open():
+            raise RuntimeError("device not open")
+        
+        logging.info("starting _run_interrupt_callback_loop")
+        
+        # create the report buffer
+        report_buffer=(c_ubyte*report_buffer_size)()
+        
+        while self._running and self.is_open():
+            size=UInt32(report_buffer_size)
+            self._devInterface.ReadPipe(1, byref(report_buffer), byref(size))
+            report_data="".join([struct.pack('B',b) for b in report_buffer])
+            # zero buffer after to ensure we don't get weird-ness
+            # if it's not fully written to later
+            for i in range(len(report_buffer)):
+                report_buffer[i]=0
+            logging.info('interrupt_report_callback(%r)',report_data)
+            print repr(report_data)
+            self._callback(self,report_data)
 
 if __name__ == '__main__':
     for dev in find_devices():
