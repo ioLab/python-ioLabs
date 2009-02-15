@@ -9,6 +9,9 @@ _keywords=set()
 _types={}
 
 def define(name, t):
+    if isinstance(t,basestring):
+        # referencing an existing type by name
+        t=_types[t]
     _types[name]=t
     # assume defined types are keywords
     for token in re.findall(r'\w+', name):
@@ -118,6 +121,13 @@ class c_function(object):
         '''convert the type for use in a struct'''
         return (self.name, self.ctype)
     
+    def from_lib(self,lib):
+        ctype=self.ctype
+        fn=getattr(lib,self.name)
+        fn.restype=ctype.restype
+        fn.argtypes=ctype.argtypes
+        return fn
+    
     def __repr__(self):
         return u'c_function(%s %s %s)' % (self.return_type, self.name, self.param_list)
 
@@ -166,7 +176,7 @@ def parse_param_list(t):
 
 
 
-def parse_c_def(s):
+def parse(s):
     '''
     parse a c definition/declaration returning a variable def, function def etc
     as appropriate
@@ -208,6 +218,4 @@ def parse_c_def(s):
         return def_type
 
 
-#c_def('CFRunLoopSourceRef (*GetInterfaceAsyncEventSource)(void *self)')
-#c_def('IOReturn (*SetAlternateInterface)(void *self, UInt8 alternateSetting)')
-#c_def('IOReturn (*ReadPipeAsync)(void *self, UInt8 pipeRef, void *buf, UInt32 size, IOAsyncCallback1 callback, void *refcon)')
+__all__ = ['parse', 'define']

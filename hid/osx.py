@@ -12,8 +12,38 @@ import struct
 
 # common code for OS X and win32
 from hid import HIDDevice
+from hid.cparser import define, parse
 
 # define various types we'll be using (so we can match name from headers)
+
+define('mach_port_t',  'void*')
+define('io_object_t',  'void*')
+define('io_iterator_t','void*')
+define('SInt32',c_int32)
+define('UInt32',c_uint32)
+define('uint32_t',c_uint32)
+define('UInt64',c_uint64)
+define('IOReturn',c_int)
+define('CFRunLoopSourceRef', 'void*')
+define('CFDictionaryRef', 'void*')
+define('CFArrayRef', 'void*')
+define('AbsoluteTime', 'UInt64')
+define('CFTimeInterval', 'double')
+
+# 128 bit identifier
+class CFUUIDBytes(Structure):
+    _fields_ = [ ('bytes0_15', c_ubyte * 16) ]
+
+define('CFUUIDBytes',CFUUIDBytes)
+define('REFIID','CFUUIDBytes')
+
+define('IOHIDElementCookie','void*')
+define('IOHIDElementType',c_int) # enum 
+
+define('IOHIDQueueInterface','void*')
+define('IOHIDOutputTransactionInterface','void*')
+define('IOHIDReportType',c_int) # enum
+
 mach_port_t=c_void_p
 
 io_object_t=mach_port_t
@@ -29,15 +59,12 @@ CFArrayRef=c_void_p
 AbsoluteTime=UInt64
 CFTimeInterval=c_double
 
-# 128 bit identifier
-class CFUUIDBytes(Structure):
-    _fields_ = [ ('bytes0_15', c_ubyte * 16) ]
 REFIID=CFUUIDBytes
 
-IOHIDCallbackFunction=CFUNCTYPE(None,c_void_p,IOReturn,c_void_p,c_void_p)
+IOHIDCallbackFunction=parse('void (*IOHIDCallbackFunction)(void *target, IOReturn result, void *refcon, void *sender)').ctype
 IOHIDElementCookie=c_void_p
 IOHIDElementType=c_int # enum 
-IOHIDElementCallbackFunction=CFUNCTYPE(None,c_void_p,IOReturn,c_void_p,c_void_p,IOHIDElementCookie)
+IOHIDElementCallbackFunction=parse('void (*IOHIDElementCallbackFunction)(void *target, IOReturn result, void *refcon, void *sender, IOHIDElementCookie elementCookie)').ctype
 
 IOHIDQueueInterface=c_void_p
 IOHIDOutputTransactionInterface=c_void_p
@@ -50,7 +77,7 @@ kIOHIDReportTypeFeature=2
 kIOHIDReportTypeCount=3
 #
 
-IOHIDReportCallbackFunction=CFUNCTYPE(None,c_void_p,IOReturn,c_void_p,c_void_p,UInt32)
+IOHIDReportCallbackFunction=parse('void ( *IOHIDReportCallbackFunction) ( void *target, IOReturn result, void *refcon, void *sender, uint32_t bufferSize)').ctype
 
 class IOHIDEventStruct(Structure):
     _fields_=[
