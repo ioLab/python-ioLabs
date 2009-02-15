@@ -1,8 +1,8 @@
 from ctypes import *
 import re
 
-TOKENS=re.compile(r'\w+|[()*,]')
-WORD=re.compile(r'^\w+$')
+TOKENS=re.compile(r'[\w_]+|[()*,]')
+WORD=re.compile(r'^[_\w]+$')
 
 _keywords=set()
 
@@ -11,11 +11,12 @@ _types={}
 def define(name, t):
     if isinstance(t,basestring):
         # referencing an existing type by name
-        t=_types[t]
+        t=_parse_type(t)
     _types[name]=t
     # assume defined types are keywords
     for token in re.findall(r'\w+', name):
         _keywords.add(token)
+    return t # return the defined-type
 
 # define standard ctypes
 define('void', None)
@@ -102,6 +103,9 @@ class c_type(object):
         '''convert the type for use in a struct'''
         return (self.name, self.ctype)
     
+    def cast(self,value):
+        return cast(value,self.ctype)
+    
     def __repr__(self):
         if self.name:
             return u'c_type(%s %s)' % (self.type_str, self.name)
@@ -124,10 +128,9 @@ class c_function(object):
         return (self.name, self.ctype)
     
     def from_lib(self,lib):
-        ctype=self.ctype
         fn=getattr(lib,self.name)
-        fn.restype=ctype.restype
-        fn.argtypes=ctype.argtypes
+        fn.restype=self.return_type.ctype
+        fn.argtypes=[p.ctype for p in self.param_list]
         return fn
     
     def __repr__(self):

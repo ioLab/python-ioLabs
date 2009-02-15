@@ -21,6 +21,7 @@ define('io_object_t',  'void*')
 define('io_iterator_t','void*')
 define('io_service_t', 'void*')
 define('LPVOID', 'void*')
+define('Boolean',c_ubyte)
 define('UInt16',c_uint16)
 define('SInt32',c_int32)
 define('UInt32',c_uint32)
@@ -33,6 +34,14 @@ define('CFDictionaryRef', 'void*')
 define('CFArrayRef', 'void*')
 define('AbsoluteTime', 'UInt64')
 define('CFTimeInterval', 'double')
+define('__CFString', 'void*') # opaque datatype
+define('CFStringRef', '__CFString*')
+define('__CFAllocator', 'void*')
+define('CFAllocatorRef', '__CFAllocator*')
+define('CFStringEncoding', 'UInt32')
+define('__CFNumber', 'void*')
+define('CFNumberRef', '__CFNumber*')
+define('CFNumberType',c_int) # enum
 
 # 128 bit identifier
 class CFUUIDBytes(Structure):
@@ -230,9 +239,9 @@ logging.info('loading CoreFoundation from: %s',cfLibraryLocation)
 cf=CDLL(cfLibraryLocation)
 
 # CoreFoundation Functions we'll be using
-CFDictionaryGetValue=cf.CFDictionaryGetValue
-CFStringCreateWithCString=cf.CFStringCreateWithCString
-CFNumberGetValue=cf.CFNumberGetValue
+CFDictionaryGetValue=parse('void *CFDictionaryGetValue(CFDictionaryRef theDict, void *key)').from_lib(cf)
+CFStringCreateWithCString=parse('CFStringRef CFStringCreateWithCString(CFAllocatorRef alloc, char *cStr, CFStringEncoding encoding)').from_lib(cf)
+CFNumberGetValue=parse('Boolean CFNumberGetValue(CFNumberRef number, CFNumberType theType, void *valuePtr)').from_lib(cf)
 CFRelease=cf.CFRelease
 CFUUIDGetConstantUUIDWithBytes=cf.CFUUIDGetConstantUUIDWithBytes
 CFUUIDGetUUIDBytes=cf.CFUUIDGetUUIDBytes
@@ -307,13 +316,13 @@ def find_hid_devices():
                 
                 if vendorRef:
                     vendor=c_int()
-                    CFNumberGetValue(vendorRef,kCFNumberIntType,byref(vendor))
+                    CFNumberGetValue(parse('CFNumberRef').cast(vendorRef),kCFNumberIntType,byref(vendor))
                     CFRelease(vendorRef)
                     vendor=vendor.value
                 
                 if productRef:
                     product=c_int()
-                    CFNumberGetValue(productRef,kCFNumberIntType,byref(product))
+                    CFNumberGetValue(parse('CFNumberRef').cast(productRef),kCFNumberIntType,byref(product))
                     CFRelease(productRef)
                     product=product.value
                 
@@ -374,7 +383,7 @@ class OSXHIDDevice(HIDDevice):
             
             # query to get the HID interface
             hidInterface=POINTER(POINTER(IOHIDDeviceInterface122))()
-            plugInInterface.QueryInterface(CFUUIDGetUUIDBytes(kIOHIDDeviceInterfaceID),cast(byref(hidInterface),POINTER(c_void_p)))
+            plugInInterface.QueryInterface(CFUUIDGetUUIDBytes(kIOHIDDeviceInterfaceID),parse('LPVOID*').cast(byref(hidInterface)))
             
             self._hidInterface=COMObjectRef(hidInterface)
             
