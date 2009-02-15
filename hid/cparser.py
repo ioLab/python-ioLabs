@@ -44,6 +44,8 @@ def _parse_type(type_str):
     if type_str.endswith('*'):
         type_str=type_str[:-1]
         return POINTER(_parse_type(type_str))
+    else:
+        raise ValueError("unknown type: " + type_str)
 
 class tokenizer(object):
     def __init__(self,s):

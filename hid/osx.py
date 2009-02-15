@@ -19,10 +19,14 @@ from hid.cparser import define, parse
 define('mach_port_t',  'void*')
 define('io_object_t',  'void*')
 define('io_iterator_t','void*')
+define('io_service_t', 'void*')
+define('LPVOID', 'void*')
+define('UInt16',c_uint16)
 define('SInt32',c_int32)
 define('UInt32',c_uint32)
 define('uint32_t',c_uint32)
 define('UInt64',c_uint64)
+define('ULONG',c_ulong)
 define('IOReturn',c_int)
 define('CFRunLoopSourceRef', 'void*')
 define('CFDictionaryRef', 'void*')
@@ -44,6 +48,29 @@ define('IOHIDQueueInterface','void*')
 define('IOHIDOutputTransactionInterface','void*')
 define('IOHIDReportType',c_int) # enum
 
+define('HRESULT','SInt32')
+
+IOHIDCallbackFunction=parse('void (*IOHIDCallbackFunction)(void *target, IOReturn result, void *refcon, void *sender)').ctype
+define('IOHIDCallbackFunction',IOHIDCallbackFunction)
+
+IOHIDElementCallbackFunction=parse('void (*IOHIDElementCallbackFunction)(void *target, IOReturn result, void *refcon, void *sender, IOHIDElementCookie elementCookie)').ctype
+define('IOHIDElementCallbackFunction',IOHIDElementCallbackFunction)
+
+IOHIDReportCallbackFunction=parse('void ( *IOHIDReportCallbackFunction) ( void *target, IOReturn result, void *refcon, void *sender, uint32_t bufferSize)').ctype
+define('IOHIDReportCallbackFunction',IOHIDReportCallbackFunction)
+
+class IOHIDEventStruct(Structure):
+    _fields_=[
+        parse('IOHIDElementType type').cstruct,
+        parse('IOHIDElementCookie elementCookie').cstruct,
+        parse('SInt32 value').cstruct,
+        parse('AbsoluteTime timestamp').cstruct,
+        parse('UInt32 longValueSize').cstruct,
+        parse('void * longValue').cstruct,
+    ]
+
+define('IOHIDEventStruct',IOHIDEventStruct)
+
 mach_port_t=c_void_p
 
 io_object_t=mach_port_t
@@ -61,10 +88,9 @@ CFTimeInterval=c_double
 
 REFIID=CFUUIDBytes
 
-IOHIDCallbackFunction=parse('void (*IOHIDCallbackFunction)(void *target, IOReturn result, void *refcon, void *sender)').ctype
+
 IOHIDElementCookie=c_void_p
 IOHIDElementType=c_int # enum 
-IOHIDElementCallbackFunction=parse('void (*IOHIDElementCallbackFunction)(void *target, IOReturn result, void *refcon, void *sender, IOHIDElementCookie elementCookie)').ctype
 
 IOHIDQueueInterface=c_void_p
 IOHIDOutputTransactionInterface=c_void_p
@@ -77,70 +103,84 @@ kIOHIDReportTypeFeature=2
 kIOHIDReportTypeCount=3
 #
 
-IOHIDReportCallbackFunction=parse('void ( *IOHIDReportCallbackFunction) ( void *target, IOReturn result, void *refcon, void *sender, uint32_t bufferSize)').ctype
 
-class IOHIDEventStruct(Structure):
-    _fields_=[
-        ('type',IOHIDElementType),
-        ('elementCookie',IOHIDElementCookie),
-        ('value',SInt32),
-        ('timestamp',AbsoluteTime),
-        ('longValueSize',UInt32),
-        ('longValue',c_void_p)
-    ]
 
 ########################################################
 # COM interface structures
-def IUNKNOWN_C_GUTS(fields):
-    fields.append( ('_reserved', c_void_p) )
-    fields.append( ('QueryInterface',CFUNCTYPE(c_void_p,c_void_p,REFIID,c_void_p)) )
-    fields.append( ('AddRef',CFUNCTYPE(c_ulong,c_void_p)) )
-    fields.append( ('Release',CFUNCTYPE(c_ulong,c_void_p)) )
+IUNKNOWN_C_GUTS=[
+    parse('void *_reserved').cstruct,
+    parse('HRESULT (*QueryInterface)(void *thisPointer, REFIID iid, LPVOID *ppv)').cstruct,
+    parse('ULONG (*AddRef)(void *thisPointer)').cstruct,
+    parse('ULONG (*Release)(void *thisPointer)').cstruct,
+]
 
-def IOCFPLUGINBASE(fields):
-    pass
+IOCFPLUGINBASE=[
+    parse('UInt16 version').cstruct,
+    parse('UInt16 revision').cstruct,
+    parse('IOReturn (*Probe)(void *thisPointer, CFDictionaryRef propertyTable,'
+                    'io_service_t service, SInt32 * order)').cstruct,
+    parse('IOReturn (*Start)(void *thisPointer, CFDictionaryRef propertyTable,'
+                     'io_service_t service)').cstruct,
+    parse('IOReturn (*Stop)(void *thisPointer)').cstruct,
+]
 
-def IOHIDDEVICEINTERFACE_FUNCS_100(fields):
-    fields.append( ('createAsyncEventSource',CFUNCTYPE(IOReturn,c_void_p,POINTER(CFRunLoopSourceRef))) )
-    fields.append( ('getAsyncEventSource',CFUNCTYPE(CFRunLoopSourceRef,c_void_p)) )
-    fields.append( ('createAsyncPort',CFUNCTYPE(IOReturn,c_void_p,mach_port_t)) )
-    fields.append( ('getAsyncPort',CFUNCTYPE(mach_port_t,c_void_p)) )
-    fields.append( ('open',CFUNCTYPE(IOReturn,c_void_p,UInt32)) )
-    fields.append( ('close',CFUNCTYPE(IOReturn,c_void_p)) )
-    fields.append( ('setRemovalCallback',CFUNCTYPE(IOReturn,c_void_p, IOHIDCallbackFunction,c_void_p,c_void_p) ) )
-    fields.append( ('getElementValue',CFUNCTYPE(IOReturn,c_void_p,IOHIDElementCookie,IOHIDEventStruct)) )
-    fields.append( ('setElementValue',CFUNCTYPE(IOReturn,c_void_p,IOHIDElementCookie,IOHIDEventStruct, UInt32,IOHIDElementCallbackFunction,c_void_p,c_void_p) ) )
-    fields.append( ('queryElementValue',CFUNCTYPE(IOReturn,c_void_p,IOHIDElementCookie,IOHIDEventStruct, UInt32,IOHIDElementCallbackFunction,c_void_p,c_void_p) ) )
-    fields.append( ('startAllQueues',CFUNCTYPE(IOReturn,c_void_p) ) )
-    fields.append( ('stopAllQueues',CFUNCTYPE(IOReturn,c_void_p) ) )
-    fields.append( ('allocQueue',CFUNCTYPE(IOHIDQueueInterface,c_void_p) ) )
-    fields.append( ('allocOutputTransaction',CFUNCTYPE(IOHIDOutputTransactionInterface,c_void_p) ) )
 
-def IOHIDDEVICEINTERFACE_FUNCS_121(fields):
-    fields.append( ('setReport',CFUNCTYPE(IOReturn,c_void_p,IOHIDReportType,UInt32,c_void_p,UInt32,UInt32,IOHIDReportCallbackFunction,c_void_p,c_void_p)) )
-    fields.append( ('getReport',CFUNCTYPE(IOReturn,c_void_p,IOHIDReportType,UInt32,c_void_p,UInt32,UInt32,IOHIDReportCallbackFunction,c_void_p,c_void_p)) )
+IOHIDDEVICEINTERFACE_FUNCS_100=[
+    parse('IOReturn (*createAsyncEventSource)(void * self, CFRunLoopSourceRef * source)').cstruct,
+    parse('CFRunLoopSourceRef (*getAsyncEventSource)(void * self)').cstruct,
+    parse('IOReturn (*createAsyncPort)(void * self, mach_port_t * port)').cstruct,
+    parse('mach_port_t (*getAsyncPort)(void * self)').cstruct,
+    parse('IOReturn (*open)(void * self, UInt32 flags)').cstruct,
+    parse('IOReturn (*close)(void * self)').cstruct,
+    parse('IOReturn (*setRemovalCallback)(void * self, IOHIDCallbackFunction removalCallback,'
+                                   'void * removalTarget, void * removalRefcon)').cstruct,
+    parse('IOReturn (*getElementValue)(void * self, IOHIDElementCookie	elementCookie,'
+                                'IOHIDEventStruct * valueEvent)').cstruct,
+    parse('IOReturn (*setElementValue)(void * self, IOHIDElementCookie elementCookie,'
+                                'IOHIDEventStruct * valueEvent, UInt32 timeoutMS,'
+                                'IOHIDElementCallbackFunction callback,'
+                                'void * callbackTarget, void * callbackRefcon)').cstruct,
+    parse('IOReturn (*queryElementValue)(void * self, IOHIDElementCookie elementCookie,'
+                                'IOHIDEventStruct * valueEvent, UInt32 timeoutMS,'
+                                'IOHIDElementCallbackFunction callback,'
+                                'void * callbackTarget, void * callbackRefcon)').cstruct,
+    parse('IOReturn (*startAllQueues)(void * self)').cstruct,
+    parse('IOReturn (*stopAllQueues)(void * self)').cstruct,
+    parse('IOHIDQueueInterface ** (*allocQueue) (void *self)').cstruct,
+    parse('IOHIDOutputTransactionInterface ** (*allocOutputTransaction) (void *self)').cstruct,
+]
 
-def IOHIDDEVICEINTERFACE_FUNCS_122(fields):
-    fields.append( ('copyMatchingElements',CFUNCTYPE(IOReturn,c_void_p,CFDictionaryRef,CFArrayRef)) )
-    fields.append( ('setInterruptReportHandlerCallback',CFUNCTYPE(IOReturn,c_void_p,c_void_p,UInt32,IOHIDReportCallbackFunction,c_void_p,c_void_p)) )
+IOHIDDEVICEINTERFACE_FUNCS_121=[
+    parse('IOReturn (*setReport)(void * self, IOHIDReportType reportType, UInt32 reportID,'
+                                    'void * reportBuffer, UInt32 reportBufferSize,'
+                                    'UInt32 timeoutMS, IOHIDReportCallbackFunction callback,'
+                                    'void * callbackTarget, void * callbackRefcon)').cstruct,
+    parse('IOReturn (*getReport)(void * self, IOHIDReportType reportType,'
+                                    'UInt32 reportID, void * reportBuffer,'
+                                    'UInt32 * reportBufferSize, UInt32 timeoutMS,'
+                                    'IOHIDReportCallbackFunction callback,'
+                                    'void * callbackTarget, void * callbackRefcon)').cstruct,
+]
+
+IOHIDDEVICEINTERFACE_FUNCS_122=[
+    parse('IOReturn (*copyMatchingElements)(void * self, CFDictionaryRef matchingDict,'
+                                    'CFArrayRef * elements)').cstruct,
+    parse('IOReturn (*setInterruptReportHandlerCallback)(void * self, void * reportBuffer,'
+                                    'UInt32 reportBufferSize,'
+                                    'IOHIDReportCallbackFunction callback,'
+                                    'void * callbackTarget, void * callbackRefcon)').cstruct,
+]
 
 class IOCFPlugInInterfaceStruct(Structure):
-    pass
-fields=[]
-IUNKNOWN_C_GUTS(fields)
-IOCFPLUGINBASE(fields)
-IOCFPlugInInterfaceStruct._fields_=fields
-fields=None
+    _fields_= IUNKNOWN_C_GUTS \
+            + IOCFPLUGINBASE
 
 class IOHIDDeviceInterface122(Structure):
-    pass
-fields=[]
-IUNKNOWN_C_GUTS(fields)
-IOHIDDEVICEINTERFACE_FUNCS_100(fields)
-IOHIDDEVICEINTERFACE_FUNCS_121(fields)
-IOHIDDEVICEINTERFACE_FUNCS_122(fields)
-IOHIDDeviceInterface122._fields_=fields
-fields=None
+    _fields_= IUNKNOWN_C_GUTS \
+            + IOHIDDEVICEINTERFACE_FUNCS_100 \
+            + IOHIDDEVICEINTERFACE_FUNCS_121 \
+            + IOHIDDEVICEINTERFACE_FUNCS_122
+
 ########################################################
 
 ########################################################
@@ -334,7 +374,7 @@ class OSXHIDDevice(HIDDevice):
             
             # query to get the HID interface
             hidInterface=POINTER(POINTER(IOHIDDeviceInterface122))()
-            plugInInterface.QueryInterface(CFUUIDGetUUIDBytes(kIOHIDDeviceInterfaceID),byref(hidInterface))
+            plugInInterface.QueryInterface(CFUUIDGetUUIDBytes(kIOHIDDeviceInterfaceID),cast(byref(hidInterface),POINTER(c_void_p)))
             
             self._hidInterface=COMObjectRef(hidInterface)
             
