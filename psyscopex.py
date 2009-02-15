@@ -320,7 +320,20 @@ class PsyScopeXUSBDevice(HIDDevice):
         err = self._devInterface.GetNumEndpoints(byref(numPipes))
         if err:
             raise RuntimeError("Error calling GetNumEndpoints")
+    
+    def set_report(self,report_data,report_id=0):
+        '''
+        "set" a report - send the data to the device (which must have been opened previously)
+        '''
+        HIDDevice.set_report(self,report_data,report_id)
+
+        # copy data into a ctypes buffer
+        report_buffer=(c_ubyte*len(report_data))()
+        for i,c in enumerate(report_data):
+            report_buffer[i]=struct.unpack('B',c)[0]
         
+        self._devInterface.WritePipe(2, report_buffer, len(report_data))
+    
     def _run_interrupt_callback_loop(self,report_buffer_size):
         if not self.is_open():
             raise RuntimeError("device not open")
@@ -331,6 +344,7 @@ class PsyScopeXUSBDevice(HIDDevice):
         report_buffer=(c_ubyte*report_buffer_size)()
         
         while self._running and self.is_open():
+            # just repeatedly read from the pipe 1 on the interface
             size=UInt32(report_buffer_size)
             self._devInterface.ReadPipe(1, byref(report_buffer), byref(size))
             report_data="".join([struct.pack('B',b) for b in report_buffer])
