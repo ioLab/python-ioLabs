@@ -15,15 +15,27 @@ from hid.cparser import parse, define
 
 try:
     from hid.osx import IOObjectRelease, find_usb_devices, COMObjectRef, IOCreatePlugInInterfaceForService, \
-                        CFUUIDGetConstantUUIDWithBytes, IOCFPlugInInterfaceStruct, SInt32, kIOCFPlugInInterfaceID, \
-                        IUNKNOWN_C_GUTS, CFUUIDGetUUIDBytes
+                        CFUUIDGetConstantUUIDWithBytes, IOCFPlugInInterfaceStruct, SInt32, UInt8, kIOCFPlugInInterfaceID, \
+                        IUNKNOWN_C_GUTS, CFUUIDGetUUIDBytes,iokit
     on_osx=True
 except:
     on_osx=False
 
+def err_system(x):
+    return (((x)&0x3f)<<26)
+
+def err_sub(x):
+    return (((x)&0xfff)<<14)
+
+def iokit_common_err(ret):
+    sys_iokit=err_system(0x38)
+    sub_iokit_common=err_sub(0)
+    return sys_iokit|sub_iokit_common|ret
+
 kIOUSBDeviceClassName="IOUSBDevice"
 kUSBVendorID="idVendor"
 kUSBProductID="idProduct"
+kIOReturnExclusiveAccess=iokit_common_err(0x2c5)
 
 kIOUSBDeviceUserClientTypeID=CFUUIDGetConstantUUIDWithBytes(None,
     0x9d, 0xc7, 0xb7, 0x80, 0x9e, 0xc0, 0x11, 0xD4,
@@ -220,12 +232,29 @@ class PsyScopeXUSBDevice(HIDDevice):
         err=IOCreatePlugInInterfaceForService(self._usbDevice, kIOUSBDeviceUserClientTypeID,
             kIOCFPlugInInterfaceID, byref(plugInInterface.ref), byref(score));
         
-        print err
-        
         # query to get the USB interface
         usbDevInterface=POINTER(POINTER(IOUSBDeviceInterface))()
-        res=plugInInterface.QueryInterface(CFUUIDGetUUIDBytes(kIOUSBDeviceInterfaceID),parse('LPVOID*').cast(byref(usbDevInterface)))
-        print res
+        err=plugInInterface.QueryInterface(CFUUIDGetUUIDBytes(kIOUSBDeviceInterfaceID),parse('LPVOID*').cast(byref(usbDevInterface)))
+        if err:
+            raise RuntimeError("Failed to QueryInterface for USB Device Interface")
+        
+        usbDevInterface=COMObjectRef(usbDevInterface)
+        
+        # open USB device
+        err=usbDevInterface.USBDeviceOpen()
+        if err:
+            if err == kIOReturnExclusiveAccess:
+                raise RuntimeError("Device already open")
+            raise RuntimeError("Could not open device")
+        
+        numConf=UInt8()
+        err=usbDevInterface.GetNumberOfConfigurations(byref(numConf))
+        if err:
+            raise RuntimeError("Error calling GetNumberOfConfigurations")
+        
+        logging.info("Found %d Interface(s)" % numConf.value)
+        
+        
         #self._hidInterface=COMObjectRef(hidInterface)
         
         # open the HID device
