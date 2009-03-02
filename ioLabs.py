@@ -785,7 +785,7 @@ class USBBox(object):
         
         self._commands=Commands(self._device)
         
-        self.recording=False
+        self._recording=False
         self.recording_callback=None
         self.report_ids=None
         
