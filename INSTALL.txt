@@ -7,9 +7,10 @@ The library consists of:
 * `hid/_comming.py`
 * `hid/osx.py`
 * `hid/win32.py`
+* `psyscopex.py`
 
 To start using the library (once you have met the requirements listed below),
-copy and `ioLabs.py` and the `hid` directory to somewhere on your `PYTHONPATH`.
+copy and `ioLabs.py`, `psyscopex.py` and the `hid` directory to somewhere on your `PYTHONPATH`.
 For simplicity this can be the directory that you will be using for your project.
 
 `ioLabs.py` is the USBBox specific code and this is what you will be using for the most part.
@@ -17,6 +18,9 @@ For simplicity this can be the directory that you will be using for your project
 `hid` contains the code for the the general purpose Python HID driver and you will most likely
 not need to deal with it directly - however it is used by the ioLabs module.  `hid` contains code
 for OS X and Windows and will dynamically load the correct module for the OS when `hid` is imported.
+
+`psyscopex.py` is a compatibility layer for people using PsyScopeX, as we cannot use the standard 
+hid library when PsyScopeX's kernel extension is installed.
 
 ## Requirements ##
 
@@ -27,6 +31,10 @@ or
 * Python 2.3.5+
 * C Compiler (to compile ctypes)
 * ctypes
+
+## OS X 10.5 (Leopard) ##
+
+Leopard ships with Python 2.5 and ctypes so no additional installation is required.
 
 ## OS X 10.4 Python 2.5 ##
 
@@ -59,3 +67,6 @@ Need to install ctypes (requires the developer tools for a C compiler):
 2. Find latest version for Windows Install Python 2.5 (2.5.1 at time of writing) and download .msi
 3. Run .msi and follow installer
 
+## Tests ##
+
+To run unit tests for the library use `nosetests` from http://code.google.com/p/python-nose/

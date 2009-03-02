@@ -75,3 +75,4 @@ The underlying HID device for the USB Button Box is stored in `device` on the US
 It can be accessed to manually send commands to the device using it's `set_report(report_data)`
 command - simply passing a string of the bytes that should be sent in the report.
 
+
