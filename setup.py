@@ -1,9 +1,13 @@
 #!/usr/bin/env python
 
-from distutils.core import setup
+try:#handy to build eggs if possible so people can easy_install
+    from setuptools import setup
+except:#distutils fallback
+    from distutils.core import setup
 
+import ioLabs
 setup(name='ioLab',
-      version='3.2',
+      version=ioLabs.__version__,
       description='ioLab response box library',
       author='John Montgomery',
       url='http://www.ioLab.co.uk/',

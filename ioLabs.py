@@ -3,6 +3,8 @@ the module for interfacing with an ioLan button box.
 USBBox is the main class that should be used from this module
 '''
 
+__version__='3.2'
+
 # turn on logging so we can see what's going on
 import logging
 #format='%(asctime)s %(levelname)s %(message)s'
