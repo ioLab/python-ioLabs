@@ -13,4 +13,8 @@ setup(name='ioLabs',
       url='http://www.ioLab.co.uk/',
       py_modules=['ioLabs', 'psyscopex'],
       packages=['hid'],
+      classifiers=['Development Status :: 4 - Beta',
+          'Operating System :: MacOS :: MacOS X',
+          'Operating System :: Microsoft :: Windows',
+          'Programming Language :: Python'],
      )
