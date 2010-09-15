@@ -6,7 +6,7 @@ except:#distutils fallback
     from distutils.core import setup
 
 import ioLabs
-setup(name='ioLab',
+setup(name='ioLabs',
       version=ioLabs.__version__,
       description='ioLab response box library',
       author='John Montgomery',
